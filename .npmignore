@@ -1,0 +1,20 @@
+# Source files (only ship dist)
+src
+
+# Config files
+tsconfig.json
+
+# Dev files
+.github
+.vscode
+**/node_modules
+**/.DS_Store
+.prettierrc
+.eslintrc
+
+# Test files
+tests
+__tests__
+*.test.ts
+*.test.tsx
+coverage

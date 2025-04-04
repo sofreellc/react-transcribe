@@ -2,6 +2,9 @@ import * as React from 'react';
 import { render, screen } from '@testing-library/react';
 import SpeechToText from '../components/SpeechToText';
 
+// Add testing-library to the Jest setup
+import '@testing-library/jest-dom';
+
 // Mock react-speech-recognition
 jest.mock('react-speech-recognition', () => {
   const mockStartListening = jest.fn(() => Promise.resolve());

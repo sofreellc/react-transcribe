@@ -59,63 +59,20 @@ const SpeechToText: React.FC<SpeechToTextProps> = ({
     const activeStreamingRef = useRef<boolean>(false);
     const maxSilenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
-    const latestTranscript = useRef<string | null>(null);
 
-    // Handle transcript updates
-    useEffect(() => {
-        latestTranscript.current = transcript;
-        const safeResetTranscript = () => {
-            resetTranscript();
-            return latestTranscript.current;
-        };
-
-        if (transcript && !activeStreamingRef.current) {
-            activeStreamingRef.current = true;
-            setIsActivelySpeaking(true);
-            resetSilenceTimeout();
-        } else if (transcript) {
-            resetSilenceTimeout();
-        }
-        if(interimTranscript || transcript) {
-            onSpeech?.({ 
-                transcript, 
-                interimTranscript, 
-                resetTranscript: safeResetTranscript 
-            });
-        }
-    }, [transcript, interimTranscript, listening, resetTranscript, onSpeech]);
-
-    // Speech recognition cleanup
-    useEffect(() => { 
-        return () => { 
-            stopListening(); 
-        }; 
-    }, []);
-
-    const startListening = () => {
-        SpeechRecognition.startListening({ continuous: true, language })
-            .then(() => { 
-                onSpeechToggle?.({ isListening: true, type: 'device' });
-            })
-            .catch(console.error);
-    }
-    
-    const stopListening = () => {
+    // Define stopListening first since it doesn't depend on other callbacks
+    const stopListening = React.useCallback(() => {
         SpeechRecognition.stopListening()
             .then(() => { 
                 onSpeechToggle?.({ isListening: false, type: 'device' }); 
+            })
+            .catch((error) => {
+                console.error('Error stopping speech recognition:', error);
             });
-    }
-    
-    const toggleListening = () => {
-        if (listening) {
-            stopListening();
-        } else {
-            startListening();
-        }
-    };
+    }, [onSpeechToggle]);
 
-    const handleSilence = () => {
+    // Define handleSilence next since it depends on stopListening
+    const handleSilence = React.useCallback(() => {
         if (activeStreamingRef.current) {
             activeStreamingRef.current = false;
             setIsActivelySpeaking(false);
@@ -146,9 +103,10 @@ const SpeechToText: React.FC<SpeechToTextProps> = ({
                 }, 1000);
             }
         }
-    };
+    }, [countdownThreshold, maxSilenceDuration, stopListening]);
 
-    const resetSilenceTimeout = () => {
+    // resetSilenceTimeout depends on handleSilence
+    const resetSilenceTimeout = React.useCallback(() => {
         // Reset short silence timeout
         if (silenceTimeoutRef.current) {
             clearTimeout(silenceTimeoutRef.current);
@@ -165,7 +123,51 @@ const SpeechToText: React.FC<SpeechToTextProps> = ({
             countdownIntervalRef.current = null;
             setSilenceCountdown(null);
         }
-    };
+    }, [silenceDuration, handleSilence]);
+
+    const startListening = React.useCallback(() => {
+        SpeechRecognition.startListening({ continuous: true, language })
+            .then(() => { 
+                onSpeechToggle?.({ isListening: true, type: 'device' });
+            })
+            .catch((error) => {
+                console.error('Error starting speech recognition:', error);
+            });
+    }, [language, onSpeechToggle]);
+
+    const toggleListening = React.useCallback(() => {
+        if (listening) {
+            stopListening();
+        } else {
+            startListening();
+        }
+    }, [listening, startListening, stopListening]);
+
+    // Handle transcript updates
+    useEffect(() => {
+        if (transcript && !activeStreamingRef.current) {
+            activeStreamingRef.current = true;
+            setIsActivelySpeaking(true);
+            resetSilenceTimeout();
+        } else if (transcript) {
+            resetSilenceTimeout();
+        }
+        
+        if(interimTranscript || transcript) {
+            onSpeech?.({ 
+                transcript, 
+                interimTranscript, 
+                resetTranscript
+            });
+        }
+    }, [transcript, interimTranscript, resetTranscript, onSpeech, resetSilenceTimeout]);
+
+    // Speech recognition cleanup
+    useEffect(() => { 
+        return () => { 
+            stopListening(); 
+        }; 
+    }, [stopListening]);
 
     if (!browserSupportsSpeechRecognition) {
         return null;
@@ -185,7 +187,9 @@ const SpeechToText: React.FC<SpeechToTextProps> = ({
     };
 
     return children ? (
-        <>{typeof children === 'function' ? (children as Function)(state) : children}</>
+        <>{typeof children === 'function' 
+            ? (children as (state: SpeechToTextState) => React.ReactNode)(state) 
+            : children}</>
     ) : null;
 };
 

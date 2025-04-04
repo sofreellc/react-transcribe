@@ -1,7 +1,7 @@
 export type TranscriptInfo = {
   transcript: string;
   interimTranscript: string;
-  resetTranscript: () => string | null;
+  resetTranscript: () => void;
 };
 
 export type SpeechToggleInfo = {
